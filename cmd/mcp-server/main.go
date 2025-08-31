@@ -6,23 +6,22 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
+
+	"searxng-mcp/internal/mcp/server"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"searxng-mcp/internal/mcp/server"
 )
 
 // createDefaultSettings creates a default settings.yml file for SearXNG
 func createDefaultSettings(settingsPath string) error {
 	log.Printf("Creating default settings file: %s", settingsPath)
-	
+
 	defaultSettings := `general:
   debug: false
   instance_name: "SearXNG MCP"
@@ -80,7 +79,7 @@ engines:
     display_type: ["infobox"]
     categories: [general]
 `
-	
+
 	return os.WriteFile(settingsPath, []byte(defaultSettings), 0644)
 }
 
@@ -105,18 +104,18 @@ func copyFile(src, dst string) error {
 // ensureSearXNGContainer ensures that a SearXNG Docker container is running
 func ensureSearXNGContainer(ctx context.Context) error {
 	log.Println("Checking SearXNG Docker container status...")
-	
+
 	// Check if container exists and its status
 	cmd := exec.CommandContext(ctx, "docker", "ps", "-a", "--filter", "name=searxng", "--format", "{{.Names}}\t{{.Status}}")
 	output, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("failed to check Docker containers: %w", err)
 	}
-	
+
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	containerExists := false
 	containerRunning := false
-	
+
 	for _, line := range lines {
 		if strings.TrimSpace(line) == "" {
 			continue
@@ -132,7 +131,7 @@ func ensureSearXNGContainer(ctx context.Context) error {
 			}
 		}
 	}
-	
+
 	if containerExists && !containerRunning {
 		// Container exists but is stopped, start it
 		log.Println("Starting existing SearXNG container...")
@@ -144,19 +143,19 @@ func ensureSearXNGContainer(ctx context.Context) error {
 	} else if !containerExists {
 		// Container doesn't exist, create and run it
 		log.Println("Creating new SearXNG container...")
-		
+
 		// Get user home directory for config path
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			return fmt.Errorf("failed to get user home directory: %w", err)
 		}
 		configPath := filepath.Join(homeDir, ".config", "searxng-mcp")
-		
+
 		// Ensure config directory exists, create if not
 		if err := os.MkdirAll(configPath, 0755); err != nil {
 			return fmt.Errorf("failed to create config directory: %w", err)
 		}
-		
+
 		// Check if settings.yml exists, create one if not
 		settingsPath := filepath.Join(configPath, "settings.yml")
 		if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
@@ -177,52 +176,19 @@ func ensureSearXNGContainer(ctx context.Context) error {
 				}
 			}
 		}
-		
+
 		cmd = exec.CommandContext(ctx, "docker", "run", "--name", "searxng", "-d",
 			"-p", "8888:8080",
 			"-v", fmt.Sprintf("%s:/etc/searxng/", configPath),
 			"docker.io/searxng/searxng:latest")
-		
+
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to create SearXNG container: %w", err)
 		}
 		log.Println("SearXNG container created and started successfully")
 	}
-	
-	// Wait for SearXNG to be ready
-	return waitForSearXNG(ctx, "http://localhost:8888")
-}
 
-// waitForSearXNG waits for SearXNG to be ready by checking its health
-func waitForSearXNG(ctx context.Context, url string) error {
-	log.Println("Waiting for SearXNG to be ready...")
-	
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-	}
-	
-	timeout := time.After(60 * time.Second)
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-	
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timeout:
-			return fmt.Errorf("timeout waiting for SearXNG to be ready")
-		case <-ticker.C:
-			resp, err := client.Get(url)
-			if err == nil && resp.StatusCode == http.StatusOK {
-				resp.Body.Close()
-				log.Println("SearXNG is ready!")
-				return nil
-			}
-			if resp != nil {
-				resp.Body.Close()
-			}
-		}
-	}
+	return nil
 }
 
 func main() {
