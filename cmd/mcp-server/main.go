@@ -177,13 +177,26 @@ func ensureSearXNGContainer(ctx context.Context) error {
 			}
 		}
 
+		// Remove any existing container with the same name first (in case of race condition)
+		removeCmd := exec.CommandContext(ctx, "docker", "rm", "-f", "searxng")
+		if err := removeCmd.Run(); err != nil {
+			log.Printf("Info: attempted to remove existing container: %v", err)
+		}
+
 		cmd = exec.CommandContext(ctx, "docker", "run", "--name", "searxng", "-d",
 			"-p", "8888:8080",
 			"-v", fmt.Sprintf("%s:/etc/searxng/", configPath),
 			"docker.io/searxng/searxng:latest")
 
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to create SearXNG container: %w", err)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			// If creation fails, check if container now exists (race condition)
+			checkCmd := exec.CommandContext(ctx, "docker", "ps", "-q", "--filter", "name=searxng")
+			if checkOutput, checkErr := checkCmd.Output(); checkErr == nil && len(strings.TrimSpace(string(checkOutput))) > 0 {
+				log.Println("SearXNG container was created by another process, continuing...")
+				return nil
+			}
+			return fmt.Errorf("failed to create SearXNG container: %v - Output: %s", err, string(output))
 		}
 		log.Println("SearXNG container created and started successfully")
 	}
