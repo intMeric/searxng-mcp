@@ -5,15 +5,43 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"searxng-mcp/pkg/searxng"
 )
 
 // NewAdvancedSearchTool creates and registers an advanced search tool
 func NewAdvancedSearchTool(server *mcp.Server, client searxng.Client) {
+	availableTimeRanges := strings.Join(getAllTimeRangeNames(), ", ")
+	
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "search_advanced",
-		Description: "Perform an advanced search with language, time range, and pagination options using SearXNG",
+		Description: fmt.Sprintf("Perform an advanced search with language, time range, and pagination options using SearXNG. Available time ranges: %s", availableTimeRanges),
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"query": {
+					Type:        "string",
+					Description: "The search query to execute",
+				},
+				"language": {
+					Type:        "string",
+					Description: "Language code for search results (e.g., 'en', 'fr', 'es')",
+				},
+				"time_range": {
+					Type:        "string",
+					Description: fmt.Sprintf("Time range for search results. Available: %s", availableTimeRanges),
+					Enum:        interfaceSliceFromStringSlice(getAllTimeRangeNames()),
+				},
+				"page": {
+					Type:        "integer",
+					Description: "Page number for pagination (1-50)",
+					Minimum:     floatPtr(1),
+					Maximum:     floatPtr(50),
+				},
+			},
+			Required: []string{"query"},
+		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args AdvancedSearchArgs) (*mcp.CallToolResult, any, error) {
 		// Validate query
 		if args.Query == "" {
@@ -91,4 +119,18 @@ func getAllTimeRangeNames() []string {
 		names[i] = string(tr)
 	}
 	return names
+}
+
+// interfaceSliceFromStringSlice converts string slice to interface slice for JSON schema enum
+func interfaceSliceFromStringSlice(strings []string) []interface{} {
+	result := make([]interface{}, len(strings))
+	for i, s := range strings {
+		result[i] = s
+	}
+	return result
+}
+
+// floatPtr returns a pointer to a float64 value
+func floatPtr(f float64) *float64 {
+	return &f
 }

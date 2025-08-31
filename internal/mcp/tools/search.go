@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"searxng-mcp/pkg/searxng"
 )
@@ -13,6 +14,16 @@ func NewSearchTool(server *mcp.Server, client searxng.Client) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "search",
 		Description: "Perform a simple web search using SearXNG",
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"query": {
+					Type:        "string",
+					Description: "The search query to execute",
+				},
+			},
+			Required: []string{"query"},
+		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args SearchArgs) (*mcp.CallToolResult, any, error) {
 		// Validate query
 		if args.Query == "" {

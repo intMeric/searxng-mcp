@@ -5,15 +5,37 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"searxng-mcp/pkg/searxng"
 )
 
 // NewCategorySearchTool creates and registers a category search tool
 func NewCategorySearchTool(server *mcp.Server, client searxng.Client) {
+	availableCategories := strings.Join(getAllCategoryNames(), ", ")
+	
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "search_category",
-		Description: "Perform a search in specific categories using SearXNG",
+		Description: fmt.Sprintf("Perform a search in specific categories using SearXNG. Available categories: %s", availableCategories),
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"query": {
+					Type:        "string",
+					Description: "The search query to execute",
+				},
+				"categories": {
+					Type:        "array",
+					Description: fmt.Sprintf("Categories to search in. Available: %s", availableCategories),
+					Items: &jsonschema.Schema{
+						Type: "string",
+						Enum: interfaceSlice(getAllCategoryNames()),
+					},
+					MinItems: intPtr(1),
+				},
+			},
+			Required: []string{"query", "categories"},
+		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args CategorySearchArgs) (*mcp.CallToolResult, any, error) {
 		// Validate query
 		if args.Query == "" {
@@ -49,12 +71,13 @@ func NewCategorySearchTool(server *mcp.Server, client searxng.Client) {
 		}
 
 		if len(invalidCategories) > 0 {
+			validCategoriesFormatted := strings.Join(getAllCategoryNames(), "\", \"")
 			return &mcp.CallToolResult{
 				IsError: true,
 				Content: []mcp.Content{
-					&mcp.TextContent{Text: fmt.Sprintf("Error: invalid categories: %s. Valid categories are: %s",
-						strings.Join(invalidCategories, ", "),
-						strings.Join(getAllCategoryNames(), ", "))},
+					&mcp.TextContent{Text: fmt.Sprintf("Error: invalid categories found: \"%s\". Please use only valid categories from: [\"%s\"]. Example: {\"query\": \"machine learning\", \"categories\": [\"science\", \"it\"]}",
+						strings.Join(invalidCategories, "\", \""),
+						validCategoriesFormatted)},
 				},
 			}, nil, nil
 		}
@@ -99,4 +122,18 @@ func getAllCategoryNames() []string {
 		names[i] = string(cat)
 	}
 	return names
+}
+
+// interfaceSlice converts string slice to interface slice for JSON schema enum
+func interfaceSlice(strings []string) []interface{} {
+	result := make([]interface{}, len(strings))
+	for i, s := range strings {
+		result[i] = s
+	}
+	return result
+}
+
+// intPtr returns a pointer to an int value
+func intPtr(i int) *int {
+	return &i
 }
