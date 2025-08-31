@@ -72,7 +72,7 @@ func NewAdvancedSearchTool(server *mcp.Server, client searxng.Client) {
 		}
 
 		// Format results for MCP
-		content := formatAdvancedSearchResults(response, args.Query, opts)
+		content := formatSearchResultsJSON(response)
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -82,67 +82,6 @@ func NewAdvancedSearchTool(server *mcp.Server, client searxng.Client) {
 	})
 }
 
-// formatAdvancedSearchResults formats advanced search results for MCP display
-func formatAdvancedSearchResults(response *searxng.SearchResponse, query string, opts searxng.SearchOptions) string {
-	var optionsStr []string
-	if opts.Language != "" {
-		optionsStr = append(optionsStr, fmt.Sprintf("language: %s", opts.Language))
-	}
-	if opts.TimeRange != "" {
-		optionsStr = append(optionsStr, fmt.Sprintf("time_range: %s", string(opts.TimeRange)))
-	}
-	if opts.PageNo > 1 {
-		optionsStr = append(optionsStr, fmt.Sprintf("page: %d", opts.PageNo))
-	}
-
-	optionsDisplay := ""
-	if len(optionsStr) > 0 {
-		optionsDisplay = fmt.Sprintf(" [%s]", strings.Join(optionsStr, ", "))
-	}
-
-	if response.NumberOfResults == 0 {
-		return fmt.Sprintf("No results found for query: \"%s\"%s", query, optionsDisplay)
-	}
-
-	result := fmt.Sprintf("Advanced search results for \"%s\"%s (Total: %d results)\n\n",
-		response.Query, optionsDisplay, response.NumberOfResults)
-
-	// Limit to first 10 results for readability
-	maxResults := 10
-	if len(response.Results) < maxResults {
-		maxResults = len(response.Results)
-	}
-
-	for i, searchResult := range response.Results[:maxResults] {
-		result += fmt.Sprintf("%d. **%s**\n", i+1, searchResult.Title)
-		result += fmt.Sprintf("   URL: %s\n", searchResult.URL)
-		if searchResult.Content != "" {
-			// Truncate content if too long
-			content := searchResult.Content
-			if len(content) > 200 {
-				content = content[:200] + "..."
-			}
-			result += fmt.Sprintf("   Summary: %s\n", content)
-		}
-		if searchResult.Score > 0 {
-			result += fmt.Sprintf("   Score: %.1f\n", searchResult.Score)
-		}
-		if len(searchResult.Engines) > 0 {
-			result += fmt.Sprintf("   Sources: %s\n", strings.Join(searchResult.Engines, ", "))
-		}
-		result += "\n"
-	}
-
-	if len(response.Results) > maxResults {
-		result += fmt.Sprintf("... and %d more results\n", len(response.Results)-maxResults)
-	}
-
-	if opts.PageNo > 1 {
-		result += fmt.Sprintf("\nShowing page %d of results\n", opts.PageNo)
-	}
-
-	return result
-}
 
 // getAllTimeRangeNames returns all valid time range names as strings
 func getAllTimeRangeNames() []string {

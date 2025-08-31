@@ -18,7 +18,6 @@ A Model Context Protocol (MCP) server implementation for SearXNG, designed to en
 - Run specific package tests: `go test -v ./pkg/<package>`
 - Run tests with coverage: `go test -v -cover ./...`  
 - Run specific test: `go test -v ./pkg/<package> -run TestName`
-- Run manual SearXNG integration testing: `go run cmd/qa_manual_test/main.go`
 - Build MCP server: `go build -o bin/searxng-mcp-server ./cmd/mcp-server`
 - Run MCP server: `./bin/searxng-mcp-server` (default localhost:8888)
 - Run MCP server with custom URL: `./bin/searxng-mcp-server -url http://custom-searxng.com`
@@ -28,9 +27,9 @@ A Model Context Protocol (MCP) server implementation for SearXNG, designed to en
 This project implements a Model Context Protocol (MCP) server for SearXNG integration using Go 1.23. The architecture follows standard Go project layout:
 
 - `/cmd/mcp-server/` - MCP server main application with stdio support for Claude Desktop
-- `/cmd/qa_manual_test/` - Manual QA testing application  
 - `/pkg/searxng/` - SearXNG client library with search functionality
-- `/internal/mcp/` - MCP server implementation and tools
+- `/internal/mcp/server/` - MCP server implementation and registration
+- `/internal/mcp/tools/` - MCP tool implementations (search, category_search, advanced_search)
 - `/config/` - Configuration files (SearXNG settings.yml)
 
 The server provides 3 MCP tools for Claude Desktop:
@@ -64,7 +63,7 @@ import (
     "context"
     . "github.com/onsi/ginkgo/v2"
     . "github.com/onsi/gomega"
-    "mgds/src/pkg/mypackage"
+    "searxng-mcp/pkg/mypackage"
 )
 
 var _ = Describe("MyComponent", func() {

@@ -36,7 +36,7 @@ func NewSearchTool(server *mcp.Server, client searxng.Client) {
 		}
 
 		// Format results for MCP
-		content := formatSearchResults(response, args.Query)
+		content := formatSearchResultsJSON(response)
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -46,38 +46,3 @@ func NewSearchTool(server *mcp.Server, client searxng.Client) {
 	})
 }
 
-// formatSearchResults formats search results for MCP display
-func formatSearchResults(response *searxng.SearchResponse, query string) string {
-	if response.NumberOfResults == 0 {
-		return fmt.Sprintf("No results found for query: %s", query)
-	}
-
-	result := fmt.Sprintf("Search results for \"%s\" (Total: %d results)\n\n", 
-		response.Query, response.NumberOfResults)
-
-	// Limit to first 10 results for readability
-	maxResults := 10
-	if len(response.Results) < maxResults {
-		maxResults = len(response.Results)
-	}
-
-	for i, searchResult := range response.Results[:maxResults] {
-		result += fmt.Sprintf("%d. **%s**\n", i+1, searchResult.Title)
-		result += fmt.Sprintf("   URL: %s\n", searchResult.URL)
-		if searchResult.Content != "" {
-			// Truncate content if too long
-			content := searchResult.Content
-			if len(content) > 200 {
-				content = content[:200] + "..."
-			}
-			result += fmt.Sprintf("   Summary: %s\n", content)
-		}
-		result += "\n"
-	}
-
-	if len(response.Results) > maxResults {
-		result += fmt.Sprintf("... and %d more results\n", len(response.Results)-maxResults)
-	}
-
-	return result
-}
