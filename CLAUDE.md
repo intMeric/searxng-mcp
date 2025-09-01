@@ -21,21 +21,34 @@ A Model Context Protocol (MCP) server implementation for SearXNG, designed to en
 - Build MCP server: `go build -o bin/searxng-mcp-server ./cmd/mcp-server`
 - Run MCP server: `./bin/searxng-mcp-server` (default localhost:8888)
 - Run MCP server with custom URL: `./bin/searxng-mcp-server -url http://custom-searxng.com`
+- Auto-launch SearXNG container: `./bin/searxng-mcp-server -auto-launch`
+- Check Docker container status: `docker ps -a --filter name=searxng`
+- View MCP server logs: `docker logs searxng` (if using Docker container)
+- Remove SearXNG container: `docker rm -f searxng`
 
 ## Architecture
 
 This project implements a Model Context Protocol (MCP) server for SearXNG integration using Go 1.23. The architecture follows standard Go project layout:
 
 - `/cmd/mcp-server/` - MCP server main application with stdio support for Claude Desktop
-- `/pkg/searxng/` - SearXNG client library with search functionality
+- `/pkg/searxng/` - SearXNG client library with search functionality and interfaces
 - `/internal/mcp/server/` - MCP server implementation and registration
 - `/internal/mcp/tools/` - MCP tool implementations (search, category_search, advanced_search)
 - `/config/` - Configuration files (SearXNG settings.yml)
 
 The server provides 3 MCP tools for Claude Desktop:
-- **search** - Simple web search
-- **search_category** - Search in specific categories (images, videos, news, etc.)
+- **search** - Simple web search with JSON-formatted results
+- **search_category** - Search in specific categories (images, videos, news, etc.)  
 - **search_advanced** - Advanced search with language, time range, and pagination options
+
+### Key Components
+
+- **SearXNG Client Interface**: `pkg/searxng/client.go` defines the `Client` interface for search operations
+- **HTTP Client Implementation**: `HTTPClient` struct provides concrete implementation with 30s timeout
+- **MCP Tool Registration**: Each tool is registered using the go-sdk with JSON schema validation
+- **Docker Integration**: Auto-launch functionality manages SearXNG Docker containers
+- **Configuration Management**: Automatic settings.yml creation and management for SearXNG instances  
+- **Embedded Configuration**: Minimal SearXNG settings (without comments) embedded in binary via `pkg/config` package
 
 ## Development
 
@@ -45,6 +58,24 @@ The server provides 3 MCP tools for Claude Desktop:
 - Comments must be in ENGLISH !
 - For each package that is intended to be used by others, always create interfaces. Make sure they are as SIMPLE as possible.
 - NEVER write empty if blocks or placeholder code that does nothing - delete it completely
+
+### Docker Container Management
+
+The MCP server includes intelligent Docker container management for SearXNG:
+
+- **Auto-detection**: Checks if SearXNG container exists and is running
+- **Configuration copying**: Copies project config/settings.yml or creates default settings
+- **Graceful handling**: Removes conflicting containers and handles race conditions
+- **Settings location**: `~/.config/searxng-mcp/settings.yml` (automatically created)
+- **Port mapping**: Maps container port 8080 to host port 8888
+
+### MCP Tools Implementation
+
+Each tool follows the same pattern in `/internal/mcp/tools/`:
+- **Input validation**: JSON schema validation with required parameters
+- **Error handling**: Proper MCP error responses with descriptive messages  
+- **Result formatting**: Consistent JSON formatting for search results
+- **Context handling**: Proper context propagation for cancellation and timeouts
 
 ## Testing
 

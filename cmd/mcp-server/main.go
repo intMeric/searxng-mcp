@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -14,92 +13,17 @@ import (
 	"syscall"
 
 	"searxng-mcp/internal/mcp/server"
+	"searxng-mcp/pkg/config"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// createDefaultSettings creates a default settings.yml file for SearXNG
+// createDefaultSettings creates a default settings.yml file for SearXNG using embedded config
 func createDefaultSettings(settingsPath string) error {
 	log.Printf("Creating default settings file: %s", settingsPath)
-
-	defaultSettings := `general:
-  debug: false
-  instance_name: "SearXNG MCP"
-  privacypolicy_url: false
-  donation_url: false
-  contact_url: false
-  enable_metrics: false
-
-search:
-  safe_search: 0
-  autocomplete: ""
-  autocomplete_min: 4
-  favicon_resolver: ""
-  default_lang: "auto"
-  formats:
-    - html
-    - json
-
-server:
-  port: 8080
-  bind_address: "0.0.0.0"
-  secret_key: "changeme"
-  image_proxy: false
-  http_protocol_version: "1.0"
-  method: "POST"
-
-categories_as_tabs:
-  general:
-  images:
-  videos:
-  news:
-  map:
-  music:
-  it:
-  science:
-  files:
-  social media:
-
-engines:
-  - name: google
-    engine: google
-    shortcut: go
-  
-  - name: bing
-    engine: bing
-    shortcut: bi
-  
-  - name: duckduckgo
-    engine: duckduckgo
-    shortcut: ddg
-  
-  - name: wikipedia
-    engine: wikipedia
-    shortcut: wp
-    display_type: ["infobox"]
-    categories: [general]
-`
-
-	return os.WriteFile(settingsPath, []byte(defaultSettings), 0644)
+	return os.WriteFile(settingsPath, []byte(config.DefaultSettings), 0644)
 }
 
-// copyFile copies a file from src to dst
-func copyFile(src, dst string) error {
-	sourceFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer sourceFile.Close()
-
-	destFile, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer destFile.Close()
-
-	_, err = io.Copy(destFile, sourceFile)
-	return err
-}
 
 // ensureSearXNGContainer ensures that a SearXNG Docker container is running
 func ensureSearXNGContainer(ctx context.Context) error {
@@ -159,22 +83,11 @@ func ensureSearXNGContainer(ctx context.Context) error {
 		// Check if settings.yml exists, create one if not
 		settingsPath := filepath.Join(configPath, "settings.yml")
 		if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
-			// Try to copy from project config first
-			projectConfigPath := "config/settings.yml"
-			if _, err := os.Stat(projectConfigPath); err == nil {
-				if err := copyFile(projectConfigPath, settingsPath); err != nil {
-					log.Printf("Warning: failed to copy project config, creating default: %v", err)
-					if err := createDefaultSettings(settingsPath); err != nil {
-						return fmt.Errorf("failed to create default settings: %w", err)
-					}
-				} else {
-					log.Printf("Copied project configuration to: %s", settingsPath)
-				}
-			} else {
-				if err := createDefaultSettings(settingsPath); err != nil {
-					return fmt.Errorf("failed to create default settings: %w", err)
-				}
+			// Create settings from embedded config
+			if err := createDefaultSettings(settingsPath); err != nil {
+				return fmt.Errorf("failed to create default settings: %w", err)
 			}
+			log.Printf("Created default configuration from embedded settings: %s", settingsPath)
 		}
 
 		// Remove any existing container with the same name first (in case of race condition)
