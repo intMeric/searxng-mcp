@@ -76,6 +76,8 @@ func (c *HTTPClient) Search(ctx context.Context, req SearchRequest) (*SearchResp
 	}
 
 	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	httpReq.Header.Set("X-Forwarded-For", "127.0.0.1")
+	httpReq.Header.Set("X-Real-IP", "127.0.0.1")
 
 	// Execute request
 	resp, err := c.HTTPClient.Do(httpReq)
